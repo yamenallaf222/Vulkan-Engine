@@ -89,6 +89,7 @@ class HelloTriangleApplication {
         createLogicalDevice();
         createSwapChain();
         createImageViews();
+        createGraphicsPipeline();
 
         // VkWin32SurfaceCreateInfoKHR createInfo{};
         // createInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
@@ -661,6 +662,8 @@ class HelloTriangleApplication {
             }
         }
     }
+
+    void createGraphicsPipeline() {}
 
     struct QueueFamilyIndices {
         std::optional<uint32_t> graphicsFamily;
