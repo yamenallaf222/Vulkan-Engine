@@ -244,7 +244,8 @@ class HelloTriangleApplication {
                 !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
         }
 
-        return indices.isComplete() && extensionsSupported && swapChainAdequate;
+        return indices.isComplete() && extensionsSupported && swapChainAdequate &&
+               !isDiscreteGpu(device);
     }
 
     int rateDeviceSuitability(VkPhysicalDevice device) {}
@@ -642,6 +643,13 @@ class HelloTriangleApplication {
             }
         }
         return VK_PRESENT_MODE_FIFO_KHR;
+    }
+
+    bool isDiscreteGpu(VkPhysicalDevice physicalDevice) {
+        VkPhysicalDeviceProperties deviceProperties;
+        vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
+
+        return deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
     }
 
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) {
