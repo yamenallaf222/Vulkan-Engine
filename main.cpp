@@ -112,7 +112,7 @@ class HelloTriangleApplication {
         createGraphicsPipeline();
         createFramebuffers();
         createCommandPool();
-        createCommandBuffer();
+        createCommandBuffers();
         createSyncObjects();
 
         // VkWin32SurfaceCreateInfoKHR createInfo{};
