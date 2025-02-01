@@ -707,9 +707,8 @@ class HelloTriangleApplication {
                 availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
                 return availableFormat;
             }
-
-            return availableFormats[0];
         }
+        return availableFormats[0];
     }
 
     VkPresentModeKHR chooseSwapPresentMode(
