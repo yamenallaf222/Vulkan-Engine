@@ -6,10 +6,12 @@
 
 #include <algorithm>  // Necessary for std::clamp
 #include <array>
+#include <chrono>
 #include <cstdint>  // Necessary for uint32_t
 #include <cstdlib>
 #include <fstream>
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
 #include <limits>  // Necessary for std::numeric_limits
 #include <map>
@@ -30,6 +32,11 @@ const bool enableValidationLayers = false;
 #else
 const bool enableValidationLayers = true;
 #endif
+struct UniformBufferObject {
+    glm::mat4 model;
+    glm::mat4 view;
+    glm::mat4 proj;
+};
 
 VkResult CreateDebugUtilsMessengerEXT(VkInstance instance,
                                       const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
@@ -147,10 +154,13 @@ class HelloTriangleApplication {
         createSwapChain();
         createImageViews();
         createRenderPass();
+        createDescriptorSetLayout();
         createGraphicsPipeline();
         createFramebuffers();
         createCommandPools();
         createVertexBuffer();
+        createIndexBuffer();
+        createUniformBuffers();
         createCommandBuffers();
         createSyncObjects();
 
@@ -385,15 +395,31 @@ class HelloTriangleApplication {
                                          indices.presentFamily.value(),
                                          indices.transferFamily.value()};
 
-        if (indices.graphicsFamily != indices.presentFamily) {
+        if (indices.graphicsFamily != indices.presentFamily ||
+            indices.graphicsFamily != indices.transferFamily) {
+            // Use CONCURRENT if queues are from different families
             createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-            createInfo.queueFamilyIndexCount = 2;
-            createInfo.pQueueFamilyIndices = queueFamilyIndices;
+
+            std::vector<uint32_t> queueFamilyIndices = {indices.graphicsFamily.value(),
+                                                        indices.presentFamily.value(),
+                                                        indices.transferFamily.value()};
+
+            // Remove duplicates, just in case
+            std::sort(queueFamilyIndices.begin(), queueFamilyIndices.end());
+            queueFamilyIndices.erase(
+                std::unique(queueFamilyIndices.begin(), queueFamilyIndices.end()),
+                queueFamilyIndices.end());
+
+            createInfo.queueFamilyIndexCount = static_cast<uint32_t>(queueFamilyIndices.size());
+            createInfo.pQueueFamilyIndices = queueFamilyIndices.data();
+
         } else {
+            // All queues are same — no sharing needed
             createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-            createInfo.queueFamilyIndexCount = 0;  // Optional
+            createInfo.queueFamilyIndexCount = 0;
             createInfo.pQueueFamilyIndices = nullptr;
         }
+
         createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
         createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
         createInfo.presentMode = presentMode;
@@ -456,6 +482,13 @@ class HelloTriangleApplication {
 
     void cleanup() {
         cleanupSwapChain();
+
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            vkDestroyBuffer(device, uniformBuffers[i], nullptr);
+            vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
+        }
+
+        vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 
         vkDestroyBuffer(device, indexBuffer, nullptr);
         vkFreeMemory(device, indexBufferMemory, nullptr);
@@ -892,10 +925,10 @@ class HelloTriangleApplication {
 
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        pipelineLayoutInfo.setLayoutCount = 0;             // Optional
-        pipelineLayoutInfo.pSetLayouts = nullptr;          // Optional
-        pipelineLayoutInfo.pushConstantRangeCount = 0;     // Optional
-        pipelineLayoutInfo.pPushConstantRanges = nullptr;  // Optional
+        pipelineLayoutInfo.setLayoutCount = 1;                  // Optional
+        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;  // Optional
+        pipelineLayoutInfo.pushConstantRangeCount = 0;          // Optional
+        pipelineLayoutInfo.pPushConstantRanges = nullptr;       // Optional
 
         if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) !=
             VK_SUCCESS) {
@@ -942,6 +975,42 @@ class HelloTriangleApplication {
         }
 
         return shaderModule;
+    }
+
+    void createDescriptorSetLayout() {
+        VkDescriptorSetLayoutBinding uboLayoutBinding{};
+        uboLayoutBinding.binding = 0;
+        uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uboLayoutBinding.descriptorCount = 1;
+        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        uboLayoutBinding.pImmutableSamplers = nullptr;  // Optional
+
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = 1;
+        layoutInfo.pBindings = &uboLayoutBinding;
+
+        if (!vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) !=
+            VK_SUCCESS) {
+            throw std::runtime_error("failed to create descriptor set layout!");
+        }
+    }
+
+    void createUniformBuffers() {
+        VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+
+        uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+        uniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
+        uniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
+
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                         uniformBuffers[i], uniformBuffersMemory[i]);
+
+            vkMapMemory(device, uniformBuffersMemory[i], 0, bufferSize, 0,
+                        &uniformBuffersMapped[i]);
+        }
     }
 
     struct QueueFamilyIndices {
@@ -1220,6 +1289,8 @@ class HelloTriangleApplication {
                                                 imageAvailableSemaphores[currentFrame],
                                                 VK_NULL_HANDLE, &imageIndex);
 
+        updateUniformBuffer(currentFrame);
+
         if (result == VK_ERROR_OUT_OF_DATE_KHR) {
             recreateSwapChain();
             return;
@@ -1355,7 +1426,7 @@ class HelloTriangleApplication {
         VkCommandBufferAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
         allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandPool = transferQueueCommandPool;
+        allocInfo.commandPool = graphicsQueueCommandPool;
         allocInfo.commandBufferCount = 1;
 
         VkCommandBuffer commandBuffer;
@@ -1379,10 +1450,10 @@ class HelloTriangleApplication {
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &commandBuffer;
 
-        vkQueueSubmit(transferQueue, 1, &submitInfo, VK_NULL_HANDLE);
-        vkQueueWaitIdle(transferQueue);
+        vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(graphicsQueue);
 
-        vkFreeCommandBuffers(device, transferQueueCommandPool, 1, &commandBuffer);
+        vkFreeCommandBuffers(device, graphicsQueueCommandPool, 1, &commandBuffer);
     }
 
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
@@ -1399,34 +1470,77 @@ class HelloTriangleApplication {
         throw std::runtime_error("failed to find suitable memory type");
     }
 
+    void updateUniformBuffer(uint32_t currentImage) {
+        static auto startTime = std::chrono::high_resolution_clock::now();
+
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        float time =
+            std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime)
+                .count();
+
+        UniformBufferObject ubo{};
+        ubo.model =
+            glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+
+        ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f),
+                               glm::vec3(0.0f, 0.0f, 1.0f));
+
+        ubo.proj =
+            glm::perspective(glm::radians(45.0f),
+                             swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
+
+        // glm library was made for openGL which makes the y component of the projection matrix
+        // inverted; in our use leaving it as is would produce inverted rendering thus we invert it
+        // later to the calculation of the projection matrix
+        ubo.proj[1][1] *= -1;
+
+        memcpy(uniformBuffersMapped[currentFrame], &ubo, sizeof(ubo));
+    }
+
     GLFWwindow* window;
     VkInstance instance;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice device;
     VkDebugUtilsMessengerEXT debugMessenger;
     VkSurfaceKHR surface;
+
     VkQueue graphicsQueue;
     VkQueue transferQueue;
     VkQueue presentQueue;
+
     VkSwapchainKHR swapChain;
     std::vector<VkImage> swapChainImages;
     VkFormat swapChainImageFormat;
     VkExtent2D swapChainExtent;
     std::vector<VkImageView> swapChainImageViews;
+
     VkRenderPass renderPass;
+
+    VkDescriptorSetLayout descriptorSetLayout;
+
     VkPipelineLayout pipelineLayout;
+
     VkPipeline graphicsPipeline;
+
     std::vector<VkFramebuffer> swapChainFramebuffers;
+
     VkCommandPool graphicsQueueCommandPool;
     VkCommandPool transferQueueCommandPool;
+
     VkBuffer vertexBuffer;
     VkDeviceMemory vertexBufferMemory;
     VkBuffer indexBuffer;
     VkDeviceMemory indexBufferMemory;
+    std::vector<VkBuffer> uniformBuffers;
+    std::vector<VkDeviceMemory> uniformBuffersMemory;
+    std::vector<void*> uniformBuffersMapped;
+
     std::vector<VkCommandBuffer> graphicsQueueCommandBuffers;
     std::vector<VkCommandBuffer> transferQueueCommandBuffers;
+
     std::vector<VkSemaphore> imageAvailableSemaphores;
     std::vector<VkSemaphore> renderFinishedSemaphores;
+
     std::vector<VkFence> inFlightFences;
 
     bool framebufferResized = false;
