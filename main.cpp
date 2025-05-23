@@ -38,6 +38,89 @@ struct UniformBufferObject {
     glm::mat4 proj;
 };
 
+const char* vkResultToString(VkResult result) {
+    switch (result) {
+        case VK_SUCCESS:
+            return "VK_SUCCESS";
+        case VK_NOT_READY:
+            return "VK_NOT_READY";
+        case VK_TIMEOUT:
+            return "VK_TIMEOUT";
+        case VK_EVENT_SET:
+            return "VK_EVENT_SET";
+        case VK_EVENT_RESET:
+            return "VK_EVENT_RESET";
+        case VK_INCOMPLETE:
+            return "VK_INCOMPLETE";
+        case VK_ERROR_OUT_OF_HOST_MEMORY:
+            return "VK_ERROR_OUT_OF_HOST_MEMORY";
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+            return "VK_ERROR_OUT_OF_DEVICE_MEMORY";
+        case VK_ERROR_INITIALIZATION_FAILED:
+            return "VK_ERROR_INITIALIZATION_FAILED";
+        case VK_ERROR_DEVICE_LOST:
+            return "VK_ERROR_DEVICE_LOST";
+        case VK_ERROR_MEMORY_MAP_FAILED:
+            return "VK_ERROR_MEMORY_MAP_FAILED";
+        case VK_ERROR_LAYER_NOT_PRESENT:
+            return "VK_ERROR_LAYER_NOT_PRESENT";
+        case VK_ERROR_EXTENSION_NOT_PRESENT:
+            return "VK_ERROR_EXTENSION_NOT_PRESENT";
+        case VK_ERROR_FEATURE_NOT_PRESENT:
+            return "VK_ERROR_FEATURE_NOT_PRESENT";
+        case VK_ERROR_INCOMPATIBLE_DRIVER:
+            return "VK_ERROR_INCOMPATIBLE_DRIVER";
+        case VK_ERROR_TOO_MANY_OBJECTS:
+            return "VK_ERROR_TOO_MANY_OBJECTS";
+        case VK_ERROR_FORMAT_NOT_SUPPORTED:
+            return "VK_ERROR_FORMAT_NOT_SUPPORTED";
+        case VK_ERROR_FRAGMENTED_POOL:
+            return "VK_ERROR_FRAGMENTED_POOL";
+        case VK_ERROR_UNKNOWN:
+            return "VK_ERROR_UNKNOWN";
+        case VK_ERROR_OUT_OF_POOL_MEMORY:
+            return "VK_ERROR_OUT_OF_POOL_MEMORY";
+        case VK_ERROR_INVALID_EXTERNAL_HANDLE:
+            return "VK_ERROR_INVALID_EXTERNAL_HANDLE";
+        case VK_ERROR_FRAGMENTATION:
+            return "VK_ERROR_FRAGMENTATION";
+        case VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS:
+            return "VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS";
+        case VK_ERROR_SURFACE_LOST_KHR:
+            return "VK_ERROR_SURFACE_LOST_KHR";
+        case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR:
+            return "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR";
+        case VK_SUBOPTIMAL_KHR:
+            return "VK_SUBOPTIMAL_KHR";
+        case VK_ERROR_OUT_OF_DATE_KHR:
+            return "VK_ERROR_OUT_OF_DATE_KHR";
+        case VK_ERROR_INCOMPATIBLE_DISPLAY_KHR:
+            return "VK_ERROR_INCOMPATIBLE_DISPLAY_KHR";
+        case VK_ERROR_VALIDATION_FAILED_EXT:
+            return "VK_ERROR_VALIDATION_FAILED_EXT";
+        case VK_ERROR_INVALID_SHADER_NV:
+            return "VK_ERROR_INVALID_SHADER_NV";
+        case VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT:
+            return "VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT";
+        case VK_ERROR_NOT_PERMITTED_KHR:
+            return "VK_ERROR_NOT_PERMITTED_KHR";
+        case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT:
+            return "VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT";
+        case VK_THREAD_IDLE_KHR:
+            return "VK_THREAD_IDLE_KHR";
+        case VK_THREAD_DONE_KHR:
+            return "VK_THREAD_DONE_KHR";
+        case VK_OPERATION_DEFERRED_KHR:
+            return "VK_OPERATION_DEFERRED_KHR";
+        case VK_OPERATION_NOT_DEFERRED_KHR:
+            return "VK_OPERATION_NOT_DEFERRED_KHR";
+        case VK_PIPELINE_COMPILE_REQUIRED:
+            return "VK_PIPELINE_COMPILE_REQUIRED";
+        default:
+            return "UNKNOWN_VK_RESULT";
+    }
+}
+
 VkResult CreateDebugUtilsMessengerEXT(VkInstance instance,
                                       const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
                                       const VkAllocationCallbacks* pAllocator,
@@ -324,6 +407,11 @@ class HelloTriangleApplication {
     void createLogicalDevice() {
         QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 
+        if (!indices.graphicsFamily.has_value() || !indices.presentFamily.has_value() ||
+            !indices.transferFamily.has_value()) {
+            throw std::runtime_error("Failed to find required queue families!");
+        }
+
         std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
         std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(),
                                                   indices.presentFamily.value(),
@@ -391,33 +479,32 @@ class HelloTriangleApplication {
         createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
         QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+
+        // Check if graphics and present families were found
+        if (!indices.graphicsFamily.has_value() || !indices.presentFamily.has_value()) {
+            throw std::runtime_error("Failed to find graphics or present queues for swap chain!");
+        }
+
         uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(),
-                                         indices.presentFamily.value(),
-                                         indices.transferFamily.value()};
+                                         indices.presentFamily.value()};
 
-        if (indices.graphicsFamily != indices.presentFamily ||
-            indices.graphicsFamily != indices.transferFamily) {
-            // Use CONCURRENT if queues are from different families
+        if (indices.graphicsFamily != indices.presentFamily) {
+            // Use CONCURRENT only if graphics and present are different
             createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+            createInfo.queueFamilyIndexCount = 2;  // Only need these two
+            createInfo.pQueueFamilyIndices = queueFamilyIndices;
 
-            std::vector<uint32_t> queueFamilyIndices = {indices.graphicsFamily.value(),
-                                                        indices.presentFamily.value(),
-                                                        indices.transferFamily.value()};
-
-            // Remove duplicates, just in case
-            std::sort(queueFamilyIndices.begin(), queueFamilyIndices.end());
-            queueFamilyIndices.erase(
-                std::unique(queueFamilyIndices.begin(), queueFamilyIndices.end()),
-                queueFamilyIndices.end());
-
-            createInfo.queueFamilyIndexCount = static_cast<uint32_t>(queueFamilyIndices.size());
-            createInfo.pQueueFamilyIndices = queueFamilyIndices.data();
-
+            std::cout << "Swap Chain Create: Using CONCURRENT sharing. G="
+                      << indices.graphicsFamily.value() << ", P=" << indices.presentFamily.value()
+                      << std::endl;  // Log
         } else {
-            // All queues are same — no sharing needed
+            // Use EXCLUSIVE if they are the same
             createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
             createInfo.queueFamilyIndexCount = 0;
             createInfo.pQueueFamilyIndices = nullptr;
+
+            std::cout << "Swap Chain Create: Using EXCLUSIVE sharing. G=P="
+                      << indices.graphicsFamily.value() << std::endl;  // Log
         }
 
         createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
@@ -426,9 +513,17 @@ class HelloTriangleApplication {
         createInfo.clipped = VK_TRUE;
         createInfo.oldSwapchain = VK_NULL_HANDLE;
 
+        // --- MORE LOGGING ---
+        std::cout << "Swap Chain Create: Format=" << surfaceFormat.format
+                  << ", ColorSpace=" << surfaceFormat.colorSpace << ", Extent=" << extent.width
+                  << "x" << extent.height << ", ImageCount=" << imageCount
+                  << ", PresentMode=" << presentMode << std::endl;
+
         if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
             throw std::runtime_error("failed to create swap chain!");
         }
+
+        std::cout << "Swap Chain Create: SUCCESS!" << std::endl;  // Log success
 
         vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
         swapChainImages.resize(imageCount);
@@ -456,19 +551,20 @@ class HelloTriangleApplication {
     }
 
     void createSurface() {
-        VkWin32SurfaceCreateInfoKHR surfaceCreateInfo{};
-        surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-        surfaceCreateInfo.hwnd = glfwGetWin32Window(window);
-        surfaceCreateInfo.hinstance = GetModuleHandle(nullptr);
+        // VkWin32SurfaceCreateInfoKHR surfaceCreateInfo{};
+        // surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+        // surfaceCreateInfo.hwnd = glfwGetWin32Window(window);
+        // surfaceCreateInfo.hinstance = GetModuleHandle(nullptr);
 
-        if (vkCreateWin32SurfaceKHR(instance, &surfaceCreateInfo, nullptr, &surface) !=
-            VK_SUCCESS) {
-            throw std::runtime_error("Failed to manually create Win32 surface!");
-        }
-
-        // if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
-        //     throw std::runtime_error("failed to create window surface!");
+        // if (vkCreateWin32SurfaceKHR(instance, &surfaceCreateInfo, nullptr, &surface) !=
+        //     VK_SUCCESS) {
+        //     throw std::runtime_error("Failed to manually create Win32 surface!");
         // }
+
+        // Try the GLFW way
+        if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create window surface using GLFW!");
+        }
     }
 
     void mainLoop() {
@@ -1037,6 +1133,8 @@ class HelloTriangleApplication {
         uint32_t formatCount;
         vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
 
+        std::cout << "Swap Chain Query: Found " << formatCount << " formats." << std::endl;  // Log
+
         if (formatCount != 0) {
             details.formats.resize(formatCount);
             vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount,
@@ -1046,6 +1144,9 @@ class HelloTriangleApplication {
         uint32_t presentModeCount;
 
         vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
+
+        std::cout << "Swap Chain Query: Found " << presentModeCount << " present modes."
+                  << std::endl;  // Log
 
         if (presentModeCount != 0) {
             details.presentModes.resize(presentModeCount);
@@ -1066,32 +1167,53 @@ class HelloTriangleApplication {
         vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
 
         int i = 0;
+        std::optional<uint32_t> potentialTransferFamily;
+
         for (const auto& queueFamily : queueFamilies) {
+            // Check for Graphics support
             if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
                 indices.graphicsFamily = i;
+                // If it also supports transfer, it's a candidate
+                if (queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT) {
+                    potentialTransferFamily = i;
+                }
             }
 
-            if (!(queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) &&
-                (queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT)) {
-                indices.transferFamily = i;
-            }
-
-            VkBool32 presnetSupport = false;
-            vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presnetSupport);
-            if (presnetSupport && !(queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
+            // Check for Present support (checks *any* queue)
+            VkBool32 presentSupport = false;
+            vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+            if (presentSupport) {
                 indices.presentFamily = i;
             }
 
-            if (indices.isComplete()) {
-                break;
+            // Check for dedicated Transfer support
+            if ((queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT) &&
+                !(queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
+                indices.transferFamily = i;  // Prefer dedicated
             }
 
+            // If we found graphics, present, and dedicated transfer, we can stop.
+            if (indices.graphicsFamily.has_value() && indices.presentFamily.has_value() &&
+                indices.transferFamily.has_value() &&
+                !(queueFamilies[indices.transferFamily.value()].queueFlags &
+                  VK_QUEUE_GRAPHICS_BIT)) {
+                break;
+            }
             i++;
+        }
+
+        // --- Fallbacks ---
+        // If no dedicated transfer was found, use a graphics-capable one.
+        if (!indices.transferFamily.has_value() && potentialTransferFamily.has_value()) {
+            indices.transferFamily = potentialTransferFamily;
+        }
+        // If still no transfer, and graphics exists, assume graphics can do it.
+        if (!indices.transferFamily.has_value() && indices.graphicsFamily.has_value()) {
+            indices.transferFamily = indices.graphicsFamily;
         }
 
         return indices;
     }
-
     void createRenderPass() {
         VkAttachmentDescription colorAttachment{};
         colorAttachment.format = swapChainImageFormat;
