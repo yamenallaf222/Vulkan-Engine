@@ -1556,6 +1556,8 @@ class HelloTriangleApplication {
                      VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
                      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
 
+        copyBuffer(stagingBuffer, indexBuffer, bufferSize);
+
         vkDestroyBuffer(device, stagingBuffer, nullptr);
         vkFreeMemory(device, stagingBufferMemory, nullptr);
     }
@@ -1666,18 +1668,15 @@ class HelloTriangleApplication {
                 .count();
 
         UniformBufferObject ubo{};
-        // ubo.model =
-        //     glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f,
-        //     0.0f, 1.0f));
+        ubo.model =
+            glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 
-        // ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f),
-        //                        glm::vec3(0.0f, 0.0f, 1.0f));
+        ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f),
+                               glm::vec3(0.0f, 0.0f, 1.0f));
 
-        // ubo.proj =
-        //     glm::perspective(glm::radians(45.0f),
-        //                      swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
-
-        ubo.model = ubo.view = ubo.proj = glm::mat4(1.0f);
+        ubo.proj =
+            glm::perspective(glm::radians(45.0f),
+                             swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
 
         // glm library was made for openGL which makes the y component of the projection matrix
         // inverted; in our use leaving it as is would produce inverted rendering thus we invert it
