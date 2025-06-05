@@ -311,6 +311,14 @@ class HelloTriangleApplication {
             throw std::runtime_error("failed to find a suitable GPU!");
         }
 
+        // --- ADD THIS LOGGING (Time A) ---
+        std::cout << "\n--- CAPABILITIES AT DEVICE SELECTION (Time A) ---" << std::endl;
+        SwapChainSupportDetails details = querySwapChainSupport(physicalDevice);
+        std::cout << "Max Extent: " << details.capabilities.maxImageExtent.width << "x"
+                  << details.capabilities.maxImageExtent.height << std::endl;
+        std::cout << "Max Array Layers: " << details.capabilities.maxImageArrayLayers << std::endl;
+        std::cout << "--------------------------------------------------\n" << std::endl;
+
         VkPhysicalDeviceProperties finalProperties;
         vkGetPhysicalDeviceProperties(physicalDevice, &finalProperties);
         std::cout << "\n>>> Selected Physical Device: " << finalProperties.deviceName << " <<<\n"
@@ -417,6 +425,13 @@ class HelloTriangleApplication {
             swapChainAdequate =
                 !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
         }
+        // You can add logging here to see the result for each device
+        std::cout << "Device Suitability Check:" << std::endl;
+        std::cout << "  - Queue Families Complete: " << (indices.isComplete() ? "Yes" : "No")
+                  << std::endl;
+        std::cout << "  - Extensions Supported: " << (extensionsSupported ? "Yes" : "No")
+                  << std::endl;
+        std::cout << "  - SwapChain Adequate: " << (swapChainAdequate ? "Yes" : "No") << std::endl;
 
         return indices.isComplete() && extensionsSupported && swapChainAdequate &&
                isDiscreteGpu(device);
@@ -492,7 +507,19 @@ class HelloTriangleApplication {
     }
 
     void createSwapChain() {
+        // --- ADD THIS LOGGING (Time B) ---
+        std::cout << "--- CAPABILITIES AT SWAPCHAIN CREATION (Time B) ---" << std::endl;
         SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice);
+        std::cout << "Max Extent: " << swapChainSupport.capabilities.maxImageExtent.width << "x"
+                  << swapChainSupport.capabilities.maxImageExtent.height << std::endl;
+        std::cout << "Max Array Layers: " << swapChainSupport.capabilities.maxImageArrayLayers
+                  << std::endl;
+
+        // --- ADD THIS LINE ---
+        std::cout << "Supported Usage Flags: " << swapChainSupport.capabilities.supportedUsageFlags
+                  << std::endl;
+
+        std::cout << "-----------------------------------------------------\n" << std::endl;
 
         VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
         VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
@@ -1200,12 +1227,22 @@ class HelloTriangleApplication {
         uint32_t formatCount;
         vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
 
+        // --- ADD THIS LOGGING ---
+        std::cout << "Swap Chain Query: Found " << formatCount << " surface format(s)."
+                  << std::endl;
+
         std::cout << "Swap Chain Query: Found " << formatCount << " formats." << std::endl;  // Log
 
         if (formatCount != 0) {
             details.formats.resize(formatCount);
             vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount,
                                                  details.formats.data());
+
+            // --- ADD THIS LOOP TO PRINT FORMATS ---
+            for (const auto& format : details.formats) {
+                std::cout << "  - Format: " << format.format
+                          << ", ColorSpace: " << format.colorSpace << std::endl;
+            }
         }
 
         uint32_t presentModeCount;
