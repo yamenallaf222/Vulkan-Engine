@@ -1,8 +1,22 @@
+// for reasons to enforce the nvidia driver to always make use of the dGpu for the entirety of this
+// program
+
 #define VK_USE_PLATFORM_WIN32_KHR
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
+#include <Windows.h>  // Required for use of DOWRD type
+
+// This tells the NVIDIA driver to always use the discrete GPU for this application
+extern "C" {
+__declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
+}
+
+// This tells the AMD driver to always use the discrete GPU for this application
+extern "C" {
+__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
+}
 
 #include <algorithm>  // Necessary for std::clamp
 #include <array>
@@ -18,6 +32,7 @@
 #include <optional>
 #include <set>
 #include <stdexcept>
+#include <thread>
 #include <vector>
 
 const uint32_t WIDTH = 800;
@@ -543,15 +558,31 @@ class HelloTriangleApplication {
 
         // Add this logging
         std::cout << "--- Attempting vkCreateSwapchainKHR ---" << std::endl;
+        // --- NEW: Retry Loop ---
+        const int MAX_RETRIES = 5;
+        VkResult result;
+        for (int i = 0; i < MAX_RETRIES; ++i) {
+            result = vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain);
 
-        VkResult result = vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain);
+            // If successful or the error is not the one we can recover from, break the loop
+            if (result == VK_SUCCESS || result != VK_ERROR_NATIVE_WINDOW_IN_USE_KHR) {
+                break;
+            }
 
+            // If we got the error, wait a bit and let the overlay finish its work
+            std::cout
+                << "Warning: vkCreateSwapchainKHR failed with VK_ERROR_NATIVE_WINDOW_IN_USE_KHR. Retrying ("
+                << (i + 1) << "/" << MAX_RETRIES << ")..." << std::endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        }
+
+        // After the loop, check the final result
         if (result != VK_SUCCESS) {
-            // Use the function you already wrote!
-            std::cout << "vkCreateSwapchainKHR failed with error: " << vkResultToString(result)
-                      << std::endl;
+            std::cout << "vkCreateSwapchainKHR failed after " << MAX_RETRIES
+                      << " retries with error: " << vkResultToString(result) << std::endl;
             throw std::runtime_error("failed to create swap chain!");
         }
+        // --- END: Retry Loop ---
 
         std::cout << "Swap Chain Create: SUCCESS!" << std::endl;  // Log success
 
