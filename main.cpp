@@ -541,7 +541,15 @@ class HelloTriangleApplication {
                   << "x" << extent.height << ", ImageCount=" << imageCount
                   << ", PresentMode=" << presentMode << std::endl;
 
-        if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
+        // Add this logging
+        std::cout << "--- Attempting vkCreateSwapchainKHR ---" << std::endl;
+
+        VkResult result = vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain);
+
+        if (result != VK_SUCCESS) {
+            // Use the function you already wrote!
+            std::cout << "vkCreateSwapchainKHR failed with error: " << vkResultToString(result)
+                      << std::endl;
             throw std::runtime_error("failed to create swap chain!");
         }
 
