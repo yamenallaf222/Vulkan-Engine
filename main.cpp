@@ -276,16 +276,30 @@ class HelloTriangleApplication {
         std::vector<VkPhysicalDevice> devices(deviceCount);
         vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
 
+        std::cout << "--- Found " << deviceCount << " Physical Device(s) ---" << std::endl;
+
         for (const auto& device : devices) {
+            VkPhysicalDeviceProperties deviceProperties;
+            vkGetPhysicalDeviceProperties(device, &deviceProperties);
+            std::cout << "\nEvaluating device: " << deviceProperties.deviceName << std::endl;
+
             if (isDeviceSuitable(device)) {
+                std::cout << "  - This device is suitable." << std::endl;
                 physicalDevice = device;
                 break;
+            } else {
+                std::cout << "  - This device is NOT suitable." << std::endl;
             }
         }
 
         if (physicalDevice == VK_NULL_HANDLE) {
             throw std::runtime_error("failed to find a suitable GPU!");
         }
+
+        VkPhysicalDeviceProperties finalProperties;
+        vkGetPhysicalDeviceProperties(physicalDevice, &finalProperties);
+        std::cout << "\n>>> Selected Physical Device: " << finalProperties.deviceName << " <<<\n"
+                  << std::endl;
 
         // std::multimap<int,
         // VkPhysicalDevice>
@@ -390,7 +404,7 @@ class HelloTriangleApplication {
         }
 
         return indices.isComplete() && extensionsSupported && swapChainAdequate &&
-               !isDiscreteGpu(device);
+               isDiscreteGpu(device);
     }
 
     int rateDeviceSuitability(VkPhysicalDevice device) {}
@@ -1180,6 +1194,8 @@ class HelloTriangleApplication {
         std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
         vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
 
+        std::cout << "  Queue Family Properties:" << std::endl;
+
         int i = 0;
         std::optional<uint32_t> potentialTransferFamily;
 
@@ -1196,6 +1212,12 @@ class HelloTriangleApplication {
             // Check for Present support (checks *any* queue)
             VkBool32 presentSupport = false;
             vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+
+            std::cout << "    - Queue Family #" << i << ": ";
+            std::cout << "Graphics("
+                      << ((queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) ? "Yes" : "No") << "), ";
+            std::cout << "Present(" << (presentSupport ? "Yes" : "No") << ")" << std::endl;
+
             if (presentSupport) {
                 indices.presentFamily = i;
             }
