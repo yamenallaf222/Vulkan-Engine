@@ -516,7 +516,7 @@ class HelloTriangleApplication {
         std::cout << "  - SwapChain Adequate: " << (swapChainAdequate ? "Yes" : "No") << std::endl;
 
         return indices.isComplete() && extensionsSupported && swapChainAdequate &&
-               !isDiscreteGpu(device);
+               isDiscreteGpu(device);
     }
 
     int rateDeviceSuitability(VkPhysicalDevice device) {}
