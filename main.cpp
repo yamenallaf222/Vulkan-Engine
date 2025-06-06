@@ -216,6 +216,59 @@ const std::vector<Vertex> vertices = {
 
 const std::vector<uint16_t> indices = {0, 1, 2, 2, 3, 0};
 
+// forward declaration
+class HelloTriangleApplication;
+
+LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    // We can get the application instance pointer this way
+    HelloTriangleApplication* app =
+        reinterpret_cast<HelloTriangleApplication*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+
+    switch (uMsg) {
+        case WM_CREATE: {
+            // Store the 'this' pointer passed from CreateWindowEx
+            CREATESTRUCT* pCreate = reinterpret_cast<CREATESTRUCT*>(lParam);
+            SetWindowLongPtr(hwnd, GWLP_USERDATA,
+                             reinterpret_cast<LONG_PTR>(pCreate->lpCreateParams));
+            break;
+        }
+        case WM_CLOSE:
+            DestroyWindow(hwnd);
+            break;
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            break;
+        default:
+            return DefWindowProc(hwnd, uMsg, wParam, lParam);
+    }
+    return 0;
+}
+
+void getFramebufferSize(HWND hwnd, int& width, int& height) {
+    // --- START: MODIFIED CODE ---
+    RECT rect;
+    // Use GetClientRect with the application's window handle
+    if (GetClientRect(hwnd, &rect)) {
+        width = rect.right - rect.left;
+        height = rect.bottom - rect.top;
+    }
+
+    // This loop logic remains the same
+    while (width == 0 || height == 0) {
+        if (GetClientRect(hwnd, &rect)) {
+            width = rect.right - rect.left;
+            height = rect.bottom - rect.top;
+        }
+        // In Win32, we should process messages while waiting
+        MSG msg;
+        if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
+    }
+    // --- END: MODIFIED CODE ---
+}
+
 class HelloTriangleApplication {
    public:
     void run() {
@@ -240,13 +293,42 @@ class HelloTriangleApplication {
     }
 
     void initWindow() {
+        hInstance = GetModuleHandle(nullptr);
+        const char CLASS_NAME[] = "Vulkan Window Class";
+
+        WNDCLASS wc = {};
+        wc.lpfnWndProc = WindowProc;
+        wc.hInstance = hInstance;
+        wc.lpszClassName = CLASS_NAME;
+        // Optional: Add an icon and cursor
+        // wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+        // wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+
+        RegisterClass(&wc);
+
+        // Create the window. We pass 'this' as the last parameter so we can retrieve it in
+        // WM_CREATE
+        hwnd = CreateWindowEx(0,                             // Optional window styles
+                              CLASS_NAME,                    // Window class
+                              "Win32 Vulkan Window",         // Window text
+                              WS_OVERLAPPEDWINDOW,           // Window style
+                              CW_USEDEFAULT, CW_USEDEFAULT,  // Position
+                              WIDTH, HEIGHT,                 // Size
+                              nullptr,                       // Parent window
+                              nullptr,                       // Menu
+                              hInstance,                     // Instance handle
+                              this                           // Additional application data
+        );
+
+        if (hwnd == nullptr) {
+            throw std::runtime_error("Failed to create Win32 window.");
+        }
+
+        ShowWindow(hwnd, SW_SHOW);
+        UpdateWindow(hwnd);
+
+        // We still need to init GLFW just to get the required instance extensions
         glfwInit();
-
-        glfwInitHint(GLFW_CLIENT_API, GLFW_NO_API);
-
-        window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
-        glfwSetWindowUserPointer(window, this);
-        glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
     }
 
     void initVulkan() {
@@ -434,7 +516,7 @@ class HelloTriangleApplication {
         std::cout << "  - SwapChain Adequate: " << (swapChainAdequate ? "Yes" : "No") << std::endl;
 
         return indices.isComplete() && extensionsSupported && swapChainAdequate &&
-               isDiscreteGpu(device);
+               !isDiscreteGpu(device);
     }
 
     int rateDeviceSuitability(VkPhysicalDevice device) {}
@@ -623,11 +705,7 @@ class HelloTriangleApplication {
 
     void recreateSwapChain() {
         int width = 0, height = 0;
-        glfwGetFramebufferSize(window, &width, &height);
-        while (width == 0 || height == 0) {
-            glfwGetFramebufferSize(window, &width, &height);
-            glfwWaitEvents();
-        }
+        getFramebufferSize(hwnd, width, height);
 
         vkDeviceWaitIdle(device);
 
@@ -639,28 +717,38 @@ class HelloTriangleApplication {
     }
 
     void createSurface() {
-        VkWin32SurfaceCreateInfoKHR surfaceCreateInfo{};
-        surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-        surfaceCreateInfo.hwnd = glfwGetWin32Window(window);
-        surfaceCreateInfo.hinstance = GetModuleHandle(nullptr);
+        VkWin32SurfaceCreateInfoKHR createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+        createInfo.hwnd = this->hwnd;            // Use the HWND member
+        createInfo.hinstance = this->hInstance;  // Use the HINSTANCE member
 
-        if (vkCreateWin32SurfaceKHR(instance, &surfaceCreateInfo, nullptr, &surface) !=
-            VK_SUCCESS) {
-            throw std::runtime_error("Failed to manually create Win32 surface!");
+        if (vkCreateWin32SurfaceKHR(instance, &createInfo, nullptr, &surface) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create window surface!");
         }
-
-        // Try the GLFW way
-        // if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
-        //     throw std::runtime_error("failed to create window surface using GLFW!");
-        // }
     }
 
     void mainLoop() {
-        while (!glfwWindowShouldClose(window)) {
-            glfwPollEvents();
-            drawFrame();
+        bool bQuit = false;
+        MSG msg;
+
+        while (!bQuit) {
+            // Process all pending messages
+            while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+                if (msg.message == WM_QUIT) {
+                    bQuit = true;
+                } else {
+                    TranslateMessage(&msg);
+                    DispatchMessage(&msg);
+                }
+            }
+
+            // If not quitting, draw a frame
+            if (!bQuit) {
+                drawFrame();
+            }
         }
 
+        // Wait for the device to finish all operations before cleanup
         vkDeviceWaitIdle(device);
     }
 
@@ -705,8 +793,6 @@ class HelloTriangleApplication {
 
         vkDestroySurfaceKHR(instance, surface, nullptr);
         vkDestroyInstance(instance, nullptr);
-
-        glfwDestroyWindow(window);
 
         glfwTerminate();
     }
@@ -964,7 +1050,7 @@ class HelloTriangleApplication {
             return capabilities.currentExtent;
         } else {
             int width, height;
-            glfwGetFramebufferSize(window, &width, &height);
+            getFramebufferSize(hwnd, width, height);
 
             VkExtent2D actualExtent = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
 
@@ -1784,7 +1870,14 @@ class HelloTriangleApplication {
         memcpy(uniformBuffersMapped[currentFrame], &ubo, sizeof(ubo));
     }
 
-    GLFWwindow* window;
+    // REMOVE THIS:
+    // GLFWwindow* window;
+
+    // ADD THESE:
+    HWND hwnd;
+    HINSTANCE hInstance;
+
+    // ... rest of your existing member variables ...
     VkInstance instance;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice device;
