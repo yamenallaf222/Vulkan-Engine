@@ -1,0 +1,55 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch VulkanEngine",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/main.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/",
+            "environment": [
+                {
+                    "name": "PATH",
+                    "value": "${workspaceFolder}/build;${env:PATH}"
+                }
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Configure,compile shaders then Build then Launch VulkanEngine",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "preLaunchTask": "CMake Configure and Build",
+            "program": "${workspaceFolder}/build/main.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "PATH",
+                    "value": "${workspaceFolder}/build;${env:PATH}"
+                }
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Build, compile shaders then Launch VulkanEngine",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "preLaunchTask": "CMake Build",
+            "program": "${workspaceFolder}/build/main.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/",
+            "environment": [
+                {
+                    "name": "PATH",
+                    "value": "${workspaceFolder}/build;${env:PATH}"
+                }
+            ],
+            "console": "integratedTerminal"
+        }
+    ]
+}
