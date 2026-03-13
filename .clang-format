@@ -1,0 +1,5 @@
+BasedOnStyle: Google
+IndentWidth: 4 # ← Fixes 2→4 spaces
+TabWidth: 4 # ← Tab stops
+UseTab: Never # ← Spaces only
+ColumnLimit: 120
