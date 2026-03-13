@@ -8,7 +8,7 @@
             "program": "${workspaceFolder}/build/main.exe",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build/",
+            "cwd": "${workspaceFolder}",
             "environment": [
                 {
                     "name": "PATH",
@@ -42,7 +42,7 @@
             "program": "${workspaceFolder}/build/main.exe",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build/",
+            "cwd": "${workspaceFolder}",
             "environment": [
                 {
                     "name": "PATH",
