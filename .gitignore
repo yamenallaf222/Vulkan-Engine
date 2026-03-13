@@ -239,3 +239,6 @@ data/roboto*.*
 android/.idea/**
 
 libs/vulkan/*.so
+
+# Don't ignore .vscode folder since it contains important configuration files for the project
+!.vscode
